@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
+from fastapi.middleware.cors import CORSMiddleware
 
 # --- MCP Server Configuration ---
 SERVER_NAME = "prompt_enricher_mcp_server"
@@ -28,7 +29,9 @@ async def enrich_prompt_tool(params: EnrichPromptInput) -> EnrichPromptOutput:
     if params.workspace_info.project_type == "frontend":
         # Example: Append a specific instruction for frontend projects
         enriched_prompt_text = f"{params.raw_prompt} Important: Consider modern frontend frameworks and responsive design principles."
-    elif params.workspace_info.project_type == "backend":
+    elif params.workspace_info.project_type == "backend-api":
+        enriched_prompt_text = f"{params.raw_prompt} Important: Focus on scalability, security, and database interactions."
+    elif params.workspace_info.project_type == "database":
         enriched_prompt_text = f"{params.raw_prompt} Important: Focus on scalability, security, and database interactions."
     else:
         enriched_prompt_text = ""
@@ -75,8 +78,23 @@ app = FastAPI(
     description=SERVER_DESCRIPTION,
 )
 
+# Configure CORS
+origins = [
+    "*", 
+    
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],    
+    allow_headers=["*"],    
+)
+
+
 # --- MCP Endpoints ---
-@app.get("/.mcp/manifest", response_model=MCPManifest)
+@app.get("/manifest", response_model=MCPManifest)
 async def get_mcp_manifest():
     return MCPManifest(
         server_name=SERVER_NAME,
@@ -93,10 +111,10 @@ async def get_mcp_manifest():
                         description="Information about the workspace/project.",
                         type="object", # Pydantic model will be validated
                         required=false,
-                        # In a more detailed schema, you'd define the object's properties here
+                        
                     ),
                 },
-                output_schema={ # Describes the structure of EnrichPromptOutput
+                output_schema={ 
                     "data": {
                         "type": "object",
                         "properties": {
@@ -118,7 +136,7 @@ class ExecuteToolRequest(BaseModel):
     tool_name: str
     arguments: Dict[str, Any]
 
-@app.post("/.mcp/execute_tool", response_model=Any) # Adjust response_model as needed
+@app.post("/execute_tool", response_model=Any) # Adjust response_model as needed
 async def execute_mcp_tool(request: ExecuteToolRequest):
     if request.tool_name == "enrich_prompt":
         try:
@@ -133,7 +151,7 @@ async def execute_mcp_tool(request: ExecuteToolRequest):
 class AccessResourceRequest(BaseModel): 
     uri: str
 
-@app.get("/.mcp/access_resource", response_model=Any) 
+@app.get("/access_resource", response_model=Any) 
 async def access_mcp_resource(uri: str): 
     if uri == "mcp://status":
         try:
